@@ -5,3 +5,6 @@ opencv-python
 numpy
 scipy
 huggingface_hub
+insightface
+onnxruntime
+deep-sort-realtime

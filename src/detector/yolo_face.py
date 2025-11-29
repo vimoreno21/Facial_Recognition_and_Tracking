@@ -1,14 +1,18 @@
+"""Face detector using a YOLOv8 face model downloaded from HuggingFace."""
+
 from ultralytics import YOLO
 import numpy as np
 from huggingface_hub import hf_hub_download
 
 
 class YOLOFaceDetector:
+    """Load a YOLO face model and provide a simple detect(frame) API."""
+
     def __init__(self, device="cpu", conf_threshold=0.5):
         # Auto-download the face model from HuggingFace
         model_path = hf_hub_download(
             repo_id="arnabdhar/YOLOv8-Face-Detection",
-            filename="model.pt"
+            filename="model.pt",
         )
 
         self.model = YOLO(model_path)
@@ -16,9 +20,9 @@ class YOLOFaceDetector:
         self.conf_threshold = conf_threshold
 
     def detect(self, frame: np.ndarray):
-        """
-        frame: BGR uint8 (OpenCV)
-        returns: list of dicts [{x1, y1, x2, y2, score}, ...]
+        """Detect faces in `frame` and return boxes with scores.
+
+        Returns a list of dicts with integer box coordinates and a float score.
         """
         results = self.model.predict(
             source=frame,

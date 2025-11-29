@@ -16,6 +16,10 @@ OUT_PATH = Path("data/known_embeddings.pkl")
 
 
 def get_images():
+    """Collect image paths under `data/known/<person>/`.
+
+    Returns a dict mapping person name -> list of image paths.
+    """
     persons = {}
     for person_dir in DATA_DIR.iterdir():
         if not person_dir.is_dir():
@@ -32,18 +36,19 @@ def get_images():
 
 
 def main():
+    """Build a small database of face embeddings from `data/known`."""
     device = get_best_device()
     print(f"[info] Using device: {device}")
 
     detector = YOLOFaceDetector(device=device, conf_threshold=0.5)
-    embedder = ArcFaceEmbedder(ctx_id=-1)  # CPU for ArcFace
+    embedder = ArcFaceEmbedder(ctx_id=-1)  # keep ArcFace on CPU here
 
     persons = get_images()
     if not persons:
         print("[error] No images found in data/known/*")
         return
 
-    db = {}  # name -> list of embeddings
+    db = {}  # name -> stacked embeddings
 
     for name, img_paths in persons.items():
         embs = []
@@ -54,7 +59,7 @@ def main():
                 print(f"[warn] Could not read {p}")
                 continue
 
-            # detect face, use biggest box
+            # detect faces and pick the largest box
             dets = detector.detect(img)
             if not dets:
                 print(f"[warn] No face detected in {p}")
