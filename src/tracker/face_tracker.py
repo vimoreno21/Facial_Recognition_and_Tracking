@@ -3,6 +3,8 @@
 from typing import List, Dict, Any
 
 import cv2
+import time  
+
 from deep_sort_realtime.deepsort_tracker import DeepSort
 
 from src.recognition.arcface_embedder import ArcFaceEmbedder
@@ -19,6 +21,7 @@ class FaceTracker:
         max_age: int = 15,
         n_init: int = 3,
         max_iou_distance: float = 0.7,
+        retry_interval_seconds: float = 3.0,  # how often to retry Unknowns - set to 3
     ):
         self.matcher = matcher
         self.embedder = embedder
@@ -29,8 +32,11 @@ class FaceTracker:
             max_iou_distance=max_iou_distance,
         )
 
-        # track_id -> (name, score)
+        # track_id - (name, score)
         self.track_id_to_identity: Dict[int, Any] = {}
+        # track_id  - last time (in seconds) we attempted recognition
+        self.track_id_last_attempt: Dict[int, float] = {} 
+        self.retry_interval_seconds = retry_interval_seconds  
 
     def update(self, detections, frame):
         """Update tracker with detections and return confirmed tracks.
@@ -52,6 +58,7 @@ class FaceTracker:
         tracks = self.tracker.update_tracks(ds_dets, frame=frame)
 
         results: List[Dict[str, Any]] = []
+        now = time.time()  
 
         for track in tracks:
             if not track.is_confirmed():
@@ -69,10 +76,23 @@ class FaceTracker:
             if x2 <= x1 or y2 <= y1:
                 continue
 
-            # assign identity once per track
+            # assign identity once per track, but allow periodic retries if Unknown
             if track_id not in self.track_id_to_identity:
+                # First time we see this track: attempt recognition
                 name, score = self._assign_identity(frame, x1, y1, x2, y2)
                 self.track_id_to_identity[track_id] = (name, score)
+                self.track_id_last_attempt[track_id] = now  
+            else:
+                name, score = self.track_id_to_identity[track_id]
+                # If currently Unknown, retry after a cooldown interval
+                last_attempt = self.track_id_last_attempt.get(track_id, 0.0)
+                if (
+                    name == "Unknown"
+                    and (now - last_attempt) >= self.retry_interval_seconds
+                ):
+                    name, score = self._assign_identity(frame, x1, y1, x2, y2)
+                    self.track_id_to_identity[track_id] = (name, score)
+                    self.track_id_last_attempt[track_id] = now  
 
             name, score = self.track_id_to_identity[track_id]
 
