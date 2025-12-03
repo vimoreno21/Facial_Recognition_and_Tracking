@@ -12,6 +12,8 @@ import cv2
 import numpy as np
 from src.detector.yolo_face import YOLOFaceDetector
 from src.recognition.arcface_embedder import ArcFaceEmbedder
+import matplotlib.pyplot as plt
+from pathlib import Path
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp"}
 VIDEO_EXTS = {".avi", ".mp4", ".mov", ".mkv", ".webm"}
@@ -44,16 +46,13 @@ def build_ytf_embeddings(ytf_root: Path, out_path: Path, max_per_identity: int =
     all_embs = []
     all_labels = []
 
-    if not ytf_root.exists():
-        raise FileNotFoundError(f"[error] YTF root not found: {ytf_root}")
-
     identities = sorted(p for p in ytf_root.iterdir() if p.is_dir())
-    print(f"[info] Found {len(identities)} identities under {ytf_root}")
+    print(f"Found {len(identities)} identities under {ytf_root}")
 
     for person_dir in identities:
         label = person_dir.name
         count_for_person = 0
-        print(f"[info] Processing identity: {label}")
+        print(f"Processing identity: {label}")
 
         # Sort files
         for f in sorted(person_dir.rglob("*")):
@@ -122,7 +121,7 @@ def build_ytf_embeddings(ytf_root: Path, out_path: Path, max_per_identity: int =
                     frame_idx += 1
                 cap.release()
 
-        print(f"[info] Collected {count_for_person} samples for {label}")
+        print(f"Collected {count_for_person} samples for {label}")
 
     if not all_embs:
         raise RuntimeError("[error] No embeddings were created from YTF dataset")
@@ -134,24 +133,27 @@ def build_ytf_embeddings(ytf_root: Path, out_path: Path, max_per_identity: int =
     with open(out_path, "wb") as f:
         pickle.dump({"embeddings": X, "labels": y}, f)
 
-    print(f"[info] Saved YTF embeddings to {out_path} with {len(y)} samples")
+    print(f"Saved YTF embeddings to {out_path} with {len(y)} samples")
     return {"embeddings": X, "labels": y}
 
 
 def evaluate_embeddings(embeddings: np.ndarray, labels: np.ndarray) -> float:
     """
-    Given embeddings and labels, compute same vs different identity
-    cosine similarities and sweep a threshold to find the best value
+    Compute same vs different identity
+    cosine similarities, sweep a threshold to find the best value,
+    and generate the plots
 
-    Returns best_threshold
+    Returns:
+        best_threshold
     """
     N = len(labels)
     same_sims = []
     diff_sims = []
 
-    print(f"[info] Evaluating {N} embeddings... this may take a bit for large N")
+    print(f"Evaluating {N} embeddings... this may take a bit for large N")
 
-    # Compute pairwise similarities
+    # Compute pairwise cosine similarities
+
     for i in range(N):
         for j in range(i + 1, N):
             sim = cosine_similarity(embeddings[i], embeddings[j])
@@ -163,29 +165,51 @@ def evaluate_embeddings(embeddings: np.ndarray, labels: np.ndarray) -> float:
     same_sims = np.array(same_sims, dtype="float32")
     diff_sims = np.array(diff_sims, dtype="float32")
 
-    print("[info] Same-identity similarities:")
+    print("Same-identity similarities:")
     print(f"       mean = {same_sims.mean():.4f}, std = {same_sims.std():.4f}")
-    print("[info] Different-identity similarities:")
+    print("Different-identity similarities:")
     print(f"       mean = {diff_sims.mean():.4f}, std = {diff_sims.std():.4f}")
 
-    # Sweep thresholds
+    # Sweep thresholds and compute accuracy, precision, recall
+
     thresholds = np.linspace(0.1, 0.9, 17)  # 0.10, 0.15, to 0.90
+    accs = []
+    precisions = []
+    recalls = []
+
+    total_same = len(same_sims) + 1e-8
+    total_diff = len(diff_sims) + 1e-8
+    total_pairs = total_same + total_diff
+
+    print("Threshold sweep:")
     best_thr = None
     best_acc = -1.0
 
-    total_pairs = len(same_sims) + len(diff_sims) + 1e-8
-
-    print("[info] Threshold sweep:")
     for T in thresholds:
-        tp = np.sum(same_sims >= T)  # correctly accept same
-        fn = np.sum(same_sims < T)   # miss same
-        tn = np.sum(diff_sims < T)   # correctly reject different
-        fp = np.sum(diff_sims >= T)  # incorrectly accept different
+        # For a given threshold T
+        #   sim >= T -> "match"
+        #   sim <  T -> "non-match"
 
-        acc = (tp + tn) / total_pairs
+        # Same-identity pairs
+        TP = np.sum(same_sims >= T)  # correctly accept same
+        FN = np.sum(same_sims < T)   # miss same
+
+        # Different-identity pairs
+        FP = np.sum(diff_sims >= T)  # incorrectly accept different
+        TN = np.sum(diff_sims < T)   # correctly reject different
+
+        acc = (TP + TN) / total_pairs
+        precision = TP / (TP + FP + 1e-8)
+        recall = TP / (TP + FN + 1e-8)
+
+        accs.append(acc)
+        precisions.append(precision)
+        recalls.append(recall)
+
         print(
             f"    T={T:.2f}  acc={acc:.4f}  "
-            f"(TP={tp}, FP={fp}, TN={tn}, FN={fn})"
+            f"prec={precision:.4f}  rec={recall:.4f}  "
+            f"(TP={TP}, FP={FP}, TN={TN}, FN={FN})"
         )
 
         if acc > best_acc:
@@ -193,11 +217,58 @@ def evaluate_embeddings(embeddings: np.ndarray, labels: np.ndarray) -> float:
             best_thr = T
 
     print(
-        f"[info] Best threshold = {best_thr:.3f} with "
+        f"Best threshold = {best_thr:.3f} with "
         f"approximate pairwise accuracy = {best_acc:.4f}"
     )
 
+    # Create ytf output directory for plots
+
+    ytfplot_dir = Path("data")
+    ytfplot_dir.mkdir(parents=True, exist_ok=True)
+
+    # Histogram plot: same vs different similarities
+
+    plt.figure(figsize=(6, 5))
+    plt.hist(same_sims, bins=30, alpha=0.5, label="Same identity")
+    plt.hist(diff_sims, bins=30, alpha=0.5, label="Different identity")
+    plt.axvline(best_thr, linestyle="--", label=f"Threshold = {best_thr:.2f}")
+    plt.xlabel("Cosine similarity")
+    plt.ylabel("Count")
+    plt.title("YTF Cosine Similarity Distributions")
+    plt.legend()
+    plt.grid(True)
+    hist_path = ytfplot_dir / "ytf_histogram.png"
+    plt.savefig(hist_path, dpi=200, bbox_inches="tight")
+    plt.close()
+    print(f"Saved histogram plot to {hist_path}")
+
+    # Threshold vs Accuracy plot
+    plt.figure(figsize=(6, 5))
+    plt.plot(thresholds, accs, marker="o")
+    plt.xlabel("Cosine similarity threshold")
+    plt.ylabel("Pairwise accuracy")
+    plt.title("Accuracy vs Threshold on YTF")
+    plt.grid(True)
+    acc_path = ytfplot_dir / "ytf_threshold_accuracy.png"
+    plt.savefig(acc_path, dpi=200, bbox_inches="tight")
+    plt.close()
+    print(f"Saved threshold-accuracy plot to {acc_path}")
+
+    # Precision–Recall curve
+
+    plt.figure(figsize=(6, 5))
+    plt.plot(recalls, precisions, marker="o")
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title("Precision–Recall Curve on YTF")
+    plt.grid(True)
+    pr_path = ytfplot_dir / "ytf_precision_recall.png"
+    plt.savefig(pr_path, dpi=200, bbox_inches="tight")
+    plt.close()
+    print(f"Saved precision–recall plot to {pr_path}")
+
     return float(best_thr)
+
 
 def main():
     parser = argparse.ArgumentParser(description="YTF embedding builder and evaluator")
@@ -230,9 +301,9 @@ def main():
     ytf_root = Path(args.ytf_root)
     out_path = Path(args.out)
 
-    # Step 1: build or load embeddings
+    # Step 1 build or load embeddings
     if out_path.exists():
-        print(f"[info] Loading existing embeddings from {out_path}")
+        print(f"Loading existing embeddings from {out_path}")
         with open(out_path, "rb") as f:
             data = pickle.load(f)
         X = data["embeddings"]
@@ -254,7 +325,7 @@ def main():
     thr_path = out_path.with_suffix(".threshold.txt")
     with open(thr_path, "w") as f:
         f.write(f"{best_thr:.4f}\n")
-    print(f"[info] Saved best threshold to {thr_path}")
+    print(f"Saved best threshold to {thr_path}")
 
 if __name__ == "__main__":
     main()
