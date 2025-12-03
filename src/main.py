@@ -24,7 +24,7 @@ def main():
     # core components
     detector = YOLOFaceDetector(device=device, conf_threshold=0.5)
     embedder = ArcFaceEmbedder(ctx_id=-1)
-    matcher = KnownFaceMatcher(db_path="data/known_embeddings.pkl", threshold=0.45)
+    matcher = KnownFaceMatcher(db_path="data/known_embeddings.pkl", threshold=0.35)
     tracker = FaceTracker(matcher=matcher, embedder=embedder)
 
     prev_time = time.time()
