@@ -18,6 +18,7 @@ from pathlib import Path
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp"}
 VIDEO_EXTS = {".avi", ".mp4", ".mov", ".mkv", ".webm"}
 
+
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     """Compute cosine similarity between two 1D vectors."""
     a = a.astype("float32")
@@ -26,7 +27,12 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b) / denom)
 
 
-def build_ytf_embeddings(ytf_root: Path, out_path: Path, max_per_identity: int = 20, frame_stride: int = 10,) -> dict:
+def build_ytf_embeddings(
+    ytf_root: Path,
+    out_path: Path,
+    max_per_identity: int = 20,
+    frame_stride: int = 10,
+) -> dict:
     """
     Go through portion of YTF dataset structure and build embeddings
     Assume:
@@ -137,12 +143,11 @@ def build_ytf_embeddings(ytf_root: Path, out_path: Path, max_per_identity: int =
     return {"embeddings": X, "labels": y}
 
 
-def evaluate_embeddings(embeddings: np.ndarray, labels: np.ndarray) -> float:
-    """
+def evaluate_embeddings(embeddings: np.ndarray, labels: np.ndarray, plot_dir: Path, ) -> float:
+    """""
     Compute same vs different identity
     cosine similarities, sweep a threshold to find the best value,
     and generate the plots
-
     Returns:
         best_threshold
     """
@@ -171,7 +176,6 @@ def evaluate_embeddings(embeddings: np.ndarray, labels: np.ndarray) -> float:
     print(f"       mean = {diff_sims.mean():.4f}, std = {diff_sims.std():.4f}")
 
     # Sweep thresholds and compute accuracy, precision, recall
-
     thresholds = np.linspace(0.1, 0.9, 17)  # 0.10, 0.15, to 0.90
     accs = []
     precisions = []
@@ -222,12 +226,10 @@ def evaluate_embeddings(embeddings: np.ndarray, labels: np.ndarray) -> float:
     )
 
     # Create ytf output directory for plots
-
-    ytfplot_dir = Path("data")
+    ytfplot_dir = plot_dir
     ytfplot_dir.mkdir(parents=True, exist_ok=True)
 
-    # Histogram plot: same vs different similarities
-
+    # Histogram plot same vs different similarities
     plt.figure(figsize=(6, 5))
     plt.hist(same_sims, bins=30, alpha=0.5, label="Same identity")
     plt.hist(diff_sims, bins=30, alpha=0.5, label="Different identity")
@@ -299,7 +301,11 @@ def main():
 
     args = parser.parse_args()
     ytf_root = Path(args.ytf_root)
-    out_path = Path(args.out)
+
+    # create subfolder in data that includes max_per_identity
+    eval_dir = Path("data") / f"ytf_eval"
+    eval_dir.mkdir(parents=True, exist_ok=True)
+    out_path = eval_dir / "ytf_embeddings.pkl"
 
     # Step 1 build or load embeddings
     if out_path.exists():
@@ -319,13 +325,14 @@ def main():
         y = data["labels"]
 
     # Step 2 evaluate and get best threshold
-    best_thr = evaluate_embeddings(X, y)
+    best_thr = evaluate_embeddings(X, y, eval_dir) 
 
     # save threshold as txt
-    thr_path = out_path.with_suffix(".threshold.txt")
+    thr_path = eval_dir / "ytf_embeddings.threshold.txt" 
     with open(thr_path, "w") as f:
         f.write(f"{best_thr:.4f}\n")
     print(f"Saved best threshold to {thr_path}")
+
 
 if __name__ == "__main__":
     main()
