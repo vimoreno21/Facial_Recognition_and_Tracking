@@ -48,7 +48,7 @@ def main():
         print("[error] No images found in data/known/*")
         return
 
-    db = {}  # name -> stacked embeddings
+    db = {}  # name  stacked embeddings
 
     for name, img_paths in persons.items():
         embs = []
