@@ -1,36 +1,20 @@
-"""
-YTF evaluation script.
+# Evalution of cropped ytf dataset
+# 1 - Build embeddings for a YouTube Faces (YTF)-style dataset
+# 2 - Evaluate embedding space by computing cosine similarities for same identity and different identity pairs and sweeping thresholds to find good similarity cutoff
 
-This script does two main things:
-
-1 - Build embeddings for a YouTube Faces (YTF)-style dataset, where each
-   subdirectory under --ytf_root corresponds to one identity and contains
-   either images or video files.
-
-2 - Evaluate the embedding space by computing cosine similarities for
-   same-identity and different-identity pairs, and sweeping thresholds to
-   find a good similarity cutoff for recognition.
-
-Usage example
-
-    Run using this
-    python -m src.ytf_eval --ytf_root data/ytf/frame_images_DB --max_per_identity 3
-"""
+# Run using this
+# python -m src.ytf_eval --ytf_root data/ytf/frame_images_DB --max_per_identity 3
 
 import argparse
 from pathlib import Path
 import pickle
-
 import cv2
 import numpy as np
-
 from src.detector.yolo_face import YOLOFaceDetector
 from src.recognition.arcface_embedder import ArcFaceEmbedder
 
-
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp"}
 VIDEO_EXTS = {".avi", ".mp4", ".mov", ".mkv", ".webm"}
-
 
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     """Compute cosine similarity between two 1D vectors."""
@@ -40,20 +24,14 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b) / denom)
 
 
-def build_ytf_embeddings(
-    ytf_root: Path,
-    out_path: Path,
-    max_per_identity: int = 20,
-    frame_stride: int = 10,
-) -> dict:
+def build_ytf_embeddings(ytf_root: Path, out_path: Path, max_per_identity: int = 20, frame_stride: int = 10,) -> dict:
     """
-    Walk YTF directory structure and build embeddings.
-
-    Assumptions:
-    - Each subdirectory of `ytf_root` is one identity.
-    - Each subdirectory may contain images and/or videos.
-    - For images: run YOLO, crop main face, ArcFace embedding.
-    - For videos: sample frames with `frame_stride` and do the same.
+    Go through portion of YTF dataset structure and build embeddings
+    Assume:
+    - Each of has one identity
+    - Each may contain images and/or videos
+    - For images: run YOLO, crop main face, ArcFace embedding
+    - For videos: sample frames with `frame_stride` and do the same
 
     Returns:
         A dict with:
@@ -77,11 +55,10 @@ def build_ytf_embeddings(
         count_for_person = 0
         print(f"[info] Processing identity: {label}")
 
-        # Sort files to have deterministic behavior
+        # Sort files
         for f in sorted(person_dir.rglob("*")):
             if count_for_person >= max_per_identity:
                 break
-
             suffix = f.suffix.lower()
 
             # Case 1: image files
@@ -142,9 +119,7 @@ def build_ytf_embeddings(
 
                         if count_for_person >= max_per_identity:
                             break
-
                     frame_idx += 1
-
                 cap.release()
 
         print(f"[info] Collected {count_for_person} samples for {label}")
@@ -166,10 +141,9 @@ def build_ytf_embeddings(
 def evaluate_embeddings(embeddings: np.ndarray, labels: np.ndarray) -> float:
     """
     Given embeddings and labels, compute same vs different identity
-    cosine similarities, and sweep a threshold to find the best value.
+    cosine similarities and sweep a threshold to find the best value
 
-    Returns:
-        best_threshold (float)
+    Returns best_threshold
     """
     N = len(labels)
     same_sims = []
@@ -195,7 +169,7 @@ def evaluate_embeddings(embeddings: np.ndarray, labels: np.ndarray) -> float:
     print(f"       mean = {diff_sims.mean():.4f}, std = {diff_sims.std():.4f}")
 
     # Sweep thresholds
-    thresholds = np.linspace(0.1, 0.9, 17)  # 0.10, 0.15, ..., 0.90
+    thresholds = np.linspace(0.1, 0.9, 17)  # 0.10, 0.15, to 0.90
     best_thr = None
     best_acc = -1.0
 
@@ -224,7 +198,6 @@ def evaluate_embeddings(embeddings: np.ndarray, labels: np.ndarray) -> float:
     )
 
     return float(best_thr)
-
 
 def main():
     parser = argparse.ArgumentParser(description="YTF embedding builder and evaluator")
@@ -274,10 +247,10 @@ def main():
         X = data["embeddings"]
         y = data["labels"]
 
-    # Step 2: evaluate and get best threshold
+    # Step 2 evaluate and get best threshold
     best_thr = evaluate_embeddings(X, y)
 
-    # Optional: save threshold 
+    # save threshold as txt
     thr_path = out_path.with_suffix(".threshold.txt")
     with open(thr_path, "w") as f:
         f.write(f"{best_thr:.4f}\n")
