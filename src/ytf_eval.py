@@ -11,7 +11,7 @@ This script does two main things:
    same-identity and different-identity pairs, and sweeping thresholds to
    find a good similarity cutoff for recognition.
 
-Usage examples:
+Usage example
 
     Run using this
     python -m src.ytf_eval --ytf_root data/ytf/frame_images_DB --max_per_identity 3
