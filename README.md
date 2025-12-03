@@ -2,7 +2,7 @@
 
 This project implements a local, real-time face recognition system.
 It detects faces, tracks them across frames, and identifies known individuals
-using facial embeddings. Everything runs on-device — no cloud processing.
+using facial embeddings. Everything runs on-device and there is no cloud processing.
 
 In addition to real-time recognition, the system includes full support for
 evaluating the embedding space using a YouTube Faces (YTF)-style dataset.
@@ -174,7 +174,7 @@ data/
   known_embeddings.pkl
 
   ytf/
-    frame_images_DB/             # YTF dataset root
+    frame_images_DB/             # YTF subsection of dataset root
 
   ytf_eval/
     ytf_embeddings.pkl
@@ -187,7 +187,7 @@ data/
 
 ## Notes
 
-* The system automatically selects the best device (CUDA → MPS → CPU).
+* The system automatically selects the best device (CUDA to MPS to CPU).
 * YTF evaluation provides a statistically supported cosine threshold
   that can replace hard-coded match values.
 * Recognition is re-run periodically to improve stability.
