@@ -18,7 +18,7 @@ OUT_PATH = Path("data/known_embeddings.pkl")
 def get_images():
     """Collect image paths under `data/known/<person>/`.
 
-    Returns a dict mapping person name -> list of image paths.
+    Returns a dict mapping person name to list of image paths.
     """
     persons = {}
     for person_dir in DATA_DIR.iterdir():

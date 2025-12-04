@@ -1,6 +1,4 @@
 """Small video utilities used by demo scripts.
-
-Keep comments short and human-like — clear but not verbose.
 """
 
 import argparse
@@ -9,7 +7,7 @@ import torch
 
 
 def get_best_device() -> str:
-    """Pick the best available device: cuda → mps → cpu."""
+    """Pick the best available device: cuda to mps to cpu."""
     if torch.cuda.is_available():
         return "cuda"
     if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():

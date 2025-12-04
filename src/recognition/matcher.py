@@ -11,7 +11,7 @@ class KnownFaceMatcher:
     """Load known embeddings and match an embedding to a name.
 
     The matcher returns (name, score). If the top score is below
-    `threshold` we return `Unknown`.
+    `threshold` return Unknown.
     """
 
     def __init__(self, db_path: str = "data/known_embeddings.pkl", threshold: float = 0.45):
@@ -35,7 +35,7 @@ class KnownFaceMatcher:
     def match(self, emb: np.ndarray) -> Tuple[str, float]:
         """Find the best matching person for `emb`.
 
-        Returns `(name, score)`. `Unknown` is returned when the best
+        Returns `(name, score)`. Unknown is returned when the best
         score is below `threshold`.
         """
         best_name = "Unknown"
