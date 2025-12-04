@@ -5,7 +5,7 @@ It detects faces, tracks them across frames, and identifies known individuals
 using facial embeddings. Everything runs on-device and there is no cloud processing.
 
 In addition to real-time recognition, the system includes full support for
-evaluating the embedding space using a YouTube Faces (YTF)-style dataset.
+evaluating the embedding space using a subset of the YouTube Faces (YTF) dataset.
 YTF evaluation is used to measure embedding quality, compare identities,
 and determine an optimal cosine-similarity threshold that improves
 real-time recognition decisions.
@@ -91,7 +91,7 @@ on large-scale identity comparisons rather than arbitrary values.
 
 ------------------------------------------------------------
 
-## YTF Embedding Evaluation (Integrated Component)
+## YTF Embedding Evaluation
 
 The project includes a module for evaluating the quality of the facial
 embedding space using a YTF-style dataset. This component is used to:
